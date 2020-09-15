@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/prometheus/prometheus/pkg/timestamp"
 	"io"
 	"math"
 	"math/rand"
@@ -18,6 +19,11 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"gopkg.in/alecthomas/kingpin.v2"
+)
+
+var (
+	minTime = timestamp.FromTime(time.Unix(math.MinInt64/1000+62135596801, 0))
+	maxTime = timestamp.FromTime(time.Unix(math.MaxInt64/1000-62135596801, 999999999))
 )
 
 func registerStress(m map[string]setupFunc, app *kingpin.Application) {
@@ -42,7 +48,11 @@ func registerStress(m map[string]setupFunc, app *kingpin.Application) {
 			lblvlsCtx, lblvlsCancel := context.WithTimeout(mainCtx, *timeout)
 			defer lblvlsCancel()
 
-			labelvaluesResp, err := c.LabelValues(lblvlsCtx, &storepb.LabelValuesRequest{Label: labels.MetricName})
+			labelvaluesResp, err := c.LabelValues(lblvlsCtx, &storepb.LabelValuesRequest{
+				Label: labels.MetricName,
+				Start: minTime,
+				End:   maxTime,
+			})
 			if err != nil {
 				return err
 			}
@@ -76,7 +86,7 @@ func registerStress(m map[string]setupFunc, app *kingpin.Application) {
 							MinTime: min * 1000,
 							MaxTime: max * 1000,
 							Matchers: []storepb.LabelMatcher{
-								storepb.LabelMatcher{
+								{
 									Type:  storepb.LabelMatcher_EQ,
 									Name:  labels.MetricName,
 									Value: randomMetric,
